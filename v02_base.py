@@ -6,14 +6,16 @@
 #      *base of all caluacltion in usd dollar max float lenght is 5 digit
 #       unit size is lot each lot equal 100000 USD
 #       each pipet === 0.1pipe
+#       volume unit is lot
 ####################################################################
 from datetime import datetime,time,date
+from locale import currency
 
 EXPIRE_DATE=datetime(2369,9,3,6,39)
 XAUUSD="XAUUSD"
 
 PIPE_POS={XAUUSD:100}
-
+ACCURACY=2
 #####################################################################
 #
 #####################################################################
@@ -21,6 +23,16 @@ PIPE_POS={XAUUSD:100}
 def swap_get(date,size):
     return -49*size
 
+######################################################################
+#
+######################################################################
+
+LOT_SIZE=100000
+def usd2lot(usd):
+    return usd/LOT_SIZE
+
+def lot2usd(lot):
+    return lot*LOT_SIZE
 
 ####################################################################
 #      just short and long
@@ -31,8 +43,17 @@ BUY="long"
 SELL="short"
 
 
-def spread_get(date,size,direction,kind):
+POSITON_SIGN={LONG:1,SHORT:-1}
+
+def reverse_position(pos):
+    if pos==LONG:
+        return SHORT
+    else:
+        return LONG
+
+def spread_get(date):
     return 0.48
+
 
 
 ####################################################################
@@ -43,15 +64,16 @@ def spread_get(date,size,direction,kind):
 # -1 return mean unable to handle this position
 ####################################################################
 
-def volume_get(open,sl,free_margin,risk_level,pair):
-    pipe_size=PIPE_POS[pair]
-    return round(free_margin*risk_level/(100*pipe_size*abs(open-sl)),2)  #fix this for working with europe usd and other currency
+def volume_get(open,sl,free_margin,risk_level,date,kind):
+    op=abs(open-sl)+2*spread_get(date)
+    base=free_margin*(risk_level/100)*LOT_SIZE*abs(op)
+    return round(base,2)  #fix this for working with europe usd and other currency
 
 
 #####################################################################
 #   each postion is
 #   [op,sl,tp,expire_date,kind,open_date,volume]
-#
+#    0  1  2  3             4     5        6
 positions=[]
 position_id_counter=0
 
@@ -59,12 +81,22 @@ balance=0
 def balance_get():
     return balance
 
-def equity_get(price,pair):
+def equity_get(price,pair,date):
     global positions
-    pipe_size=PIPE_POS[pair]
-    for position in positions:
-        pipes=pipe_size*(open-)
+    
+    equity=balance_get()
 
+    for position in positions:
+        
+        op=position[0]
+        kind=position[4]
+        volume=position[6]
+
+        currency_volume=lot2usd(volume)/op
+        position_equity=currency_volume*(price-spread_get(date,reverse_position(kind)))
+        equity+= round(position_equity,ACCURACY)
+
+    return equity
 
 
 
