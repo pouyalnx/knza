@@ -8,10 +8,8 @@
 #       each pipet === 0.1pipe
 #       volume unit is lot
 ####################################################################
+from cmath import inf
 from datetime import datetime,time,date
-from locale import currency
-from sys import flags
-from turtle import position
 
 EXPIRE_DATE=datetime(2369,9,3,6,39)
 XAUUSD="XAUUSD"
@@ -104,27 +102,29 @@ def equity_get(price,pair,date):
 
 def position_add(open_price,sl,tp,risk,kind,open_date,expire_date):
     
-    global position_id_counter
-    volume=volume_get(open_price,sl,0,1)
+    global position_id_counter,balance
+    volume=volume_get(open_price,sl,balance,risk,open_date,kind)
 
     if kind==LONG:
         op=open_price+spread_get(open_date)
     else:
         op=open_price-spread_get(open_date)
 
+    balance-=volume*op
     position_id_counter+=1
     positions.append([op,sl,tp,expire_date,kind,open_date,volume,position_id_counter])
 
 
 def position_close(price,id,time):
     flag=False
-    
+    global balance
     for i in range(len(positions)):
         if positions[i][7]==id:
             flag=True
             break
     if flag:
         position=positions.pop(i)
+        op=position[0] #spread should be calculated before
         volume=position[6]
         kind=position[4]
         if kind==LONG:
@@ -132,8 +132,10 @@ def position_close(price,id,time):
         else:
             pr=price+spread_get(time)
             
-        tot=volume*LOT_SIZE
-
+        vx=volume*LOT_SIZE/op
+        tot=vx*price
+        tot=round(tot,ACCURACY)
+        balance+=tot
 
 def position_update(high,low,price,time):
     global balance
@@ -144,13 +146,15 @@ def position_update(high,low,price,time):
         sl=position[1]
         kind=position[4]
         pid=position[7]
-        
+        pos_exp=position[3]
         if tp>=low and tp<=high:           
             pop_id.append([pid,tp])
         elif sl>=low and sl<=high:
             pop_id.append([pid,sl])    
+        elif time > pos_exp:
+            pop_id.append([pid,price])
 
-    for pos in pos_id:
+    for pos in pop_id:
         id=pos[0]
         pr=pos[1] 
         position_close(id,pr)   
@@ -169,16 +173,21 @@ pos_id=-1
 def tick(time:datetime,op,cl,hi,lo):
     global cond,pos_id
     
-    position_update(hi,lo,time)
-
-    if time.time==time_cond:
+    position_update(hi,lo,op,time)
+    if time.time()==time_cond:
         if op>cl:
             cond=True 
         else:
             cond=False
-    elif time.time==time_start:
+    elif time.time()==time_start:
         if cond==True:
-            pos_id=position_add(op-spread_get(),op+spread_get,EXPIRE_DATE,time,op)
+            #(open_price,sl,tp,risk,kind,open_date,expire_date):
+            if op>cl:
+                kind=LONG
+            else:
+                kind=SHORT
+
+            pos_id=position_add(op,inf,inf,1,kind,time,EXPIRE_DATE)
             cond=False
     elif time.time==time_end:
         position_close(op,pos_id)
@@ -191,6 +200,8 @@ def tick(time:datetime,op,cl,hi,lo):
 #   main reader
 #####################################################################
 fname="XAUUSD60.csv"
+balance=500
+
 
 with open(fname) as f:
     while True:
@@ -210,5 +221,9 @@ with open(fname) as f:
 
         ###############################################################################################
 
-
+        tick(time,op,cl,hi,lo)
         ###############################################################################################
+        
+###################################################################
+print(balance)
+print(position_id_counter)
