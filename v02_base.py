@@ -10,6 +10,8 @@
 ####################################################################
 from datetime import datetime,time,date
 from locale import currency
+from sys import flags
+from turtle import position
 
 EXPIRE_DATE=datetime(2369,9,3,6,39)
 XAUUSD="XAUUSD"
@@ -72,8 +74,8 @@ def volume_get(open,sl,free_margin,risk_level,date,kind):
 
 #####################################################################
 #   each postion is
-#   [op,sl,tp,expire_date,kind,open_date,volume]
-#    0  1  2  3             4     5        6
+#   [op,sl,tp,expire_date,kind,open_date,volume,pid]
+#    0  1  2  3             4     5        6     7
 positions=[]
 position_id_counter=0
 
@@ -102,21 +104,56 @@ def equity_get(price,pair,date):
 
 def position_add(open_price,sl,tp,risk,kind,open_date,expire_date):
     
+    global position_id_counter
     volume=volume_get(open_price,sl,0,1)
 
     if kind==LONG:
-        op=open_price+spread_get(open_date,volume,kind)
+        op=open_price+spread_get(open_date)
     else:
-        op=open_price-spread_get(open_date,volume,kind)
+        op=open_price-spread_get(open_date)
 
-    positions.append([op,sl,tp,expire_date,kind,open_date,volume])
+    position_id_counter+=1
+    positions.append([op,sl,tp,expire_date,kind,open_date,volume,position_id_counter])
 
 
-def position_update(high,low,time):
-    pass
+def position_close(price,id,time):
+    flag=False
+    
+    for i in range(len(positions)):
+        if positions[i][7]==id:
+            flag=True
+            break
+    if flag:
+        position=positions.pop(i)
+        volume=position[6]
+        kind=position[4]
+        if kind==LONG:
+            pr=price-spread_get(time)
+        else:
+            pr=price+spread_get(time)
+            
+        tot=volume*LOT_SIZE
 
-def position_close(price,id):
-    pass
+
+def position_update(high,low,price,time):
+    global balance
+    pop_id=[]
+    for position in positions:
+        
+        tp=position[2]
+        sl=position[1]
+        kind=position[4]
+        pid=position[7]
+        
+        if tp>=low and tp<=high:           
+            pop_id.append([pid,tp])
+        elif sl>=low and sl<=high:
+            pop_id.append([pid,sl])    
+
+    for pos in pos_id:
+        id=pos[0]
+        pr=pos[1] 
+        position_close(id,pr)   
 
 #####################################################################
 #
