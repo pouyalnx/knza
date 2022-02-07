@@ -67,7 +67,8 @@ def spread_get(date):
 def volume_get(open,sl,free_margin,risk_level,date,kind):
     op=abs(open-sl)+2*spread_get(date)
     base=free_margin*(risk_level/100)*LOT_SIZE*abs(op)
-    return round(base,2)  #fix this for working with europe usd and other currency
+    return 0.01
+    #return round(base,2)  #fix this for working with europe usd and other currency
 
 
 #####################################################################
@@ -114,14 +115,20 @@ def position_add(open_price,sl,tp,risk,kind,open_date,expire_date):
     position_id_counter+=1
     positions.append([op,sl,tp,expire_date,kind,open_date,volume,position_id_counter])
 
+    return position_id_counter
+
+ #   print(f"**{position_id_counter}**order open sl:{sl} tp:{tp} op:{op} kind:{kind} volume:{volume} date:{open_date} expdate:{expire_date}")
 
 def position_close(price,id,time):
     flag=False
     global balance
+
+
     for i in range(len(positions)):
         if positions[i][7]==id:
             flag=True
             break
+    
     if flag:
         position=positions.pop(i)
         op=position[0] #spread should be calculated before
@@ -135,29 +142,33 @@ def position_close(price,id,time):
         vx=volume*LOT_SIZE/op
         tot=vx*price
         tot=round(tot,ACCURACY)
+        
         balance+=tot
 
 def position_update(high,low,price,time):
     global balance
     pop_id=[]
     for position in positions:
-        
+        #[op,sl,tp,expire_date,kind,open_date,volume,position_id_counter]
+        # 0  1  2  3            4     5          6     7
         tp=position[2]
         sl=position[1]
         kind=position[4]
         pid=position[7]
         pos_exp=position[3]
+
         if tp>=low and tp<=high:           
             pop_id.append([pid,tp])
         elif sl>=low and sl<=high:
-            pop_id.append([pid,sl])    
+            pop_id.append([pid,sl]) 
+
         elif time > pos_exp:
             pop_id.append([pid,price])
 
     for pos in pop_id:
         id=pos[0]
         pr=pos[1] 
-        position_close(id,pr)   
+        position_close(id,pr,time)   
 
 #####################################################################
 #
@@ -173,7 +184,7 @@ pos_id=-1
 def tick(time:datetime,op,cl,hi,lo):
     global cond,pos_id
     
-    position_update(hi,lo,op,time)
+    #position_update(hi,lo,op,time)
     if time.time()==time_cond:
         if op>cl:
             cond=True 
@@ -186,11 +197,11 @@ def tick(time:datetime,op,cl,hi,lo):
                 kind=LONG
             else:
                 kind=SHORT
-
             pos_id=position_add(op,inf,inf,1,kind,time,EXPIRE_DATE)
             cond=False
-    elif time.time==time_end:
-        position_close(op,pos_id)
+    
+    elif time.time()==time_end:
+        position_close(op,pos_id,time)
 
 
 
@@ -211,7 +222,7 @@ with open(fname) as f:
         info=line.split(',')
         date_st=info[0].split('.')
         time_st=info[1].split(':')
-        time=datetime(int(date_st[0]),int(date_st[1]),int(date_st[2]),int(time_st[0]),int(time_st[1]))
+        timex=datetime(int(date_st[0]),int(date_st[1]),int(date_st[2]),int(time_st[0]),int(time_st[1]))
         
         op=float(info[2])
         hi=float(info[3])
@@ -221,7 +232,7 @@ with open(fname) as f:
 
         ###############################################################################################
 
-        tick(time,op,cl,hi,lo)
+        tick(timex,op,cl,hi,lo)
         ###############################################################################################
         
 ###################################################################
