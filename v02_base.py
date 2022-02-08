@@ -119,6 +119,9 @@ def position_add(open_price,sl,tp,risk,kind,open_date,expire_date):
 
  #   print(f"**{position_id_counter}**order open sl:{sl} tp:{tp} op:{op} kind:{kind} volume:{volume} date:{open_date} expdate:{expire_date}")
 
+
+
+
 def position_close(price,id,time):
     flag=False
     global balance
