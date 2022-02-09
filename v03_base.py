@@ -1,5 +1,6 @@
 from datetime import datetime,time,date
 from math import ceil
+from sys import flags
 ################################################################################
 
 LONG="long"
@@ -9,7 +10,7 @@ SELL="short"
 
 POSITION_SIGN={LONG:1,SHORT:-1}
 NOTSET=-1
-NOTSETDATE=datetime(2666)
+NOTSETDATE=datetime(2666,6,6,6,6,6)
 
 LOT_SIZE=100000
 def usd2lot(usd):
@@ -107,7 +108,7 @@ def order(op:float,kind:str,volume:float,date:datetime,sl=NOTSET,tp=NOTSET,expir
         op,
         volume,
         volume_currency,
-        LEVERAGE,
+        leverage,
         volume_margin,
         kind
         ]
@@ -133,6 +134,88 @@ def risk2Volume(op:float,sl:float,risk:int,balance:float,date:datetime):
 
 
 
+def closeOrder(id:int,price:float):
+    global margin,balance
+    flag=False
+    for i in range(len(orders)):
+        if orders[i][OID]==id:
+            flag=True
+            break
+
+    if flag==False:
+        return -1
+
+    order=orders.pop(i)
+    op=order[OP]
+    volume_currency=order[VOLUME_CURRENCY]
+    volume_margin=order[MARGIN]
+    kind=order[KIND]
+    leverage=order[LEVERAGE]
+    swap=order[SWAP]  #no use until now
+
+    diff=lot2usd(volume_currency)*(price-op)*POSITION_SIGN[kind]/leverage
+    balance+=diff
+    margin-=volume_margin
+    return id
+
+def updateOrders(hi:float,lo:float,date:datetime):
+    close_id=[]
+    
+    for order in orders:
+        exptime=order[EXDATE]
+        sl=order[SL]
+        tp=order[TP]
+        id=order[OID]
+        kind=order[KIND]
+
+        if sl>=lo and sl<=hi:
+            close_id.append([id,sl])
+        elif tp>=lo and tp<=hi:
+            close_id.append([id,tp])
+        elif date>=exptime:
+            if kind==LONG:
+                close_id.append([id,lo])
+            else:
+                close_id.append([id,hi])
+
+    for pack in close_id:
+        id=pack[0]
+        price=pack[1]
+        stat=closeOrder(id,price)
 
 
 
+
+
+
+
+#####################################################################
+#
+#   main reader
+#####################################################################
+fname="XAUUSD60.csv"
+balance=500
+
+
+with open(fname) as f:
+    while True:
+        line=f.readline()
+        if line=="":
+            break
+        info=line.split(',')
+        date_st=info[0].split('.')
+        time_st=info[1].split(':')
+        timex=datetime(int(date_st[0]),int(date_st[1]),int(date_st[2]),int(time_st[0]),int(time_st[1]))
+        
+        op=float(info[2])
+        hi=float(info[3])
+        lo=float(info[4])
+        cl=float(info[5])
+        vl=float(info[6])
+
+        ###############################################################################################
+
+        #tick(timex,op,cl,hi,lo)
+        ###############################################################################################
+        
+###################################################################
