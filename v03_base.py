@@ -1,7 +1,19 @@
-from datetime import datetime,time,date
+
+from datetime import datetime,time,date, timedelta
+from distutils.log import error
 from math import ceil
-from sys import flags
 ################################################################################
+LOGGING=True
+DEBUG=True
+
+def printl(msg):
+    if LOGGING==True:
+        print(msg)
+
+def printd(msg):
+    if DEBUG==True:
+        print(msg)
+#################################################################################
 
 LONG="long"
 SHORT="short"
@@ -13,16 +25,6 @@ NOTSET=-1
 NOTSETDATE=datetime(2666,6,6,6,6,6)
 
 LOT_SIZE=100000
-def usd2lot(usd):
-    return usd/LOT_SIZE
-
-def lot2usd(lot):
-    return lot*LOT_SIZE
-
-################################################################################
-#
-################################################################################
-
 
 ################################################################################
 #
@@ -64,19 +66,25 @@ orders=[]
 
 
 balance=0
-leverage=20
+leverage=50
 margin=0
 
 def equiy(price):
+    printd(f"***********************function: equity price:{price}")
     result=0
     for order in orders:
-        dif=(price-order[SL])*POSITION_SIGN[order[KIND]]*LOT_SIZE
-        value=dif/leverage
-        result+=value
-    return balance-result
+        dif=(price-order[OP])*POSITION_SIGN[order[KIND]]*order[VOLUME_CURRENCY]#/order[LEVERAGE]
+        result+=dif
 
-def freeMargin():
-    return equiy()-margin
+        printd(f"   order->{order[OID]} kind:{order[KIND]} open:{order[OP]} volume:{order[VOLUME]} vc:{order[VOLUME_CURRENCY]} lv:{order[LEVERAGE]}")
+        printd(f"   ----diff:{dif}---")
+    printd(f"*******************equity:{balance+result}")
+    
+    return balance+result
+
+def freeMargin(price):
+    printd("******free margin------")
+    return equiy(price)-margin
 
 
 def orderId():
@@ -88,14 +96,18 @@ def orderId():
 def order(op:float,kind:str,volume:float,date:datetime,sl=NOTSET,tp=NOTSET,expire_date=NOTSETDATE):
     global margin,orders
 
+
     op=op+POSITION_SIGN[kind]*spreadGet(date)
-    volume_margin=lot2usd(volume)/leverage
+    volume_margin=volume*LOT_SIZE/leverage
     
-    if volume_margin>freeMargin():
+    printd("*******order*******")
+    printd(f"    op:{op} volume:{volume} volume_margin:{volume_margin}")
+    
+    if volume_margin>freeMargin(op):
         return -1
     
     margin+=volume_margin
-    volume_currency=lot2usd(volume)/op
+    volume_currency=LOT_SIZE*volume/op
 
     oid=orderId()
 
@@ -106,31 +118,29 @@ def order(op:float,kind:str,volume:float,date:datetime,sl=NOTSET,tp=NOTSET,expir
         expire_date,
         0,
         op,
+        date,
         volume,
         volume_currency,
         leverage,
         volume_margin,
         kind
         ]
-    
+ 
+
     orders.append(order)
 
     return oid
 
 
-
-
 def risk2Volume(op:float,sl:float,risk:int,balance:float,date:datetime):
-    risk=balance*risk/100*LOT_SIZE
-    vol=LOT_SIZE*(abs(op-sl)+2*spreadGet(date))
     
+    risk=freeMargin(op)*risk/100
+    vol=risk/(LOT_SIZE*(abs(op-sl)+spreadGet(date)))
+    vol=round(vol,2)
 
-    if vol<0.008:
+    if vol<0.01:
         return -1
-    elif vol>0.01:
-        return vol
-    else:
-        return 0.01
+    return vol
 
 
 
@@ -150,13 +160,13 @@ def closeOrder(id:int,price:float):
     volume_currency=order[VOLUME_CURRENCY]
     volume_margin=order[MARGIN]
     kind=order[KIND]
-    leverage=order[LEVERAGE]
     swap=order[SWAP]  #no use until now
 
-    diff=lot2usd(volume_currency)*(price-op)*POSITION_SIGN[kind]/leverage
+    diff=volume_currency*(price-op)*POSITION_SIGN[kind]
     balance+=diff
     margin-=volume_margin
     return id
+
 
 def updateOrders(hi:float,lo:float,date:datetime):
     close_id=[]
@@ -183,9 +193,47 @@ def updateOrders(hi:float,lo:float,date:datetime):
         price=pack[1]
         stat=closeOrder(id,price)
 
+#    if equiy((hi+lo)/2)<0:
+#        error("U have no margin")  it fuck cpu it cant work under it
+
+    #what are u doing if it good to call
 
 
+#####################################################################
+#
+#
+###########################################################################
 
+time_cond=time(21,15)
+time_start=time(21,20)
+time_end=time(21,25)
+
+
+cond=False
+pos_id=-1
+
+def tick(time:datetime,op,cl,hi,lo):
+    global cond,pos_id
+    
+    updateOrders(hi,lo,time)
+    if time.time()==time_cond:
+        if op>cl:
+            cond=True 
+        else:
+            cond=False
+    elif time.time()==time_start:
+        if cond==True:
+            #(open_price,sl,tp,risk,kind,open_date,expire_date):
+            if op>cl:
+                kind=LONG
+            else:
+                kind=SHORT
+            pos_id=order(op,kind,0.02,time)
+            #pos_id=position_add(op,inf,inf,1,kind,time,EXPIRE_DATE)
+            cond=False
+    
+    elif time.time()>=time_end:
+        closeOrder(cl,pos_id)
 
 
 
@@ -193,12 +241,14 @@ def updateOrders(hi:float,lo:float,date:datetime):
 #
 #   main reader
 #####################################################################
-fname="XAUUSD60.csv"
-balance=500
-
+fname="XAUUSD5.csv"
+balance=1000
 
 with open(fname) as f:
     while True:
+
+
+
         line=f.readline()
         if line=="":
             break
@@ -215,7 +265,12 @@ with open(fname) as f:
 
         ###############################################################################################
 
-        #tick(timex,op,cl,hi,lo)
+        tick(timex,op,cl,hi,lo)
         ###############################################################################################
         
 ###################################################################
+
+for order in orders:
+    print(order)
+
+print(equiy(cl))
